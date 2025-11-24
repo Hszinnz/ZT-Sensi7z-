@@ -225,10 +225,10 @@
         let auth;
         let userId = 'unknown';
         let isAuthReady = false;
-        let isLoggedIn = false; // NOVO: Estado de login da aplicação
+        let isLoggedIn = false; 
         let historyRecords = [];
-        let currentOS = 'Android'; // 'Android' ou 'iOS'
-        let currentStage = 'login'; // 'login', 'sensi', 'loading', 'result', 'history', 'result_history'
+        let currentOS = 'Android'; 
+        let currentStage = 'login'; 
         
         // Variáveis de sessão temporária
         const TIMEOUT_MINUTES = 15;
@@ -252,14 +252,61 @@
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const HISTORY_COLLECTION_PATH_BASE = `artifacts/${appId}/users/`; 
 
-        // Dados de Sensibilidade
-        const SENSITIVITY_DATA = {
-            'Baixa': { Geral: 150, 'Ponto Vermelho': 140, 'Mira 2x': 130, 'Mira 4x': 120, 'Mira AWM': 50, Olhadinha: 140, 'Botão de Atirar (Tamanho)': '70%', DPI: 450 },
-            'Média': { Geral: 175, 'Ponto Vermelho': 165, 'Mira 2x': 155, 'Mira 4x': 140, 'Mira AWM': 75, Olhadinha: 170, 'Botão de Atirar (Tamanho)': '55%', DPI: 550 },
-            'Alta': { Geral: 195, 'Ponto Vermelho': 185, 'Mira 2x': 175, 'Mira 4x': 160, 'Mira AWM': 90, Olhadinha: 185, 'Botão de Atirar (Tamanho)': '40%', DPI: 650 }
-        };
-        const SENSI_STYLES = Object.keys(SENSITIVITY_DATA); 
+        // --- NOVAS FUNÇÕES E DADOS DINÂMICOS ---
 
+        /**
+         * Retorna um número inteiro aleatório dentro de um intervalo inclusivo.
+         */
+        function getRandomInt(min, max) {
+            min = Math.ceil(min);
+            max = Math.floor(max);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Retorna um item aleatório de um array (útil para tamanhos de botão, etc.)
+         */
+        function getRandomArrayItem(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        // Intervalos de Sensibilidade (Min e Max)
+        const SENSITIVITY_RANGES = {
+            'Baixa': {
+                Geral: [145, 160], 
+                'Ponto Vermelho': [135, 145],
+                'Mira 2x': [125, 135],
+                'Mira 4x': [115, 125],
+                'Mira AWM': [45, 60],
+                Olhadinha: [135, 145],
+                'Botão de Atirar (Tamanho)': ['65%', '70%', '75%'], // Opções de string
+                DPI: [400, 500]
+            },
+            'Média': {
+                Geral: [170, 185], 
+                'Ponto Vermelho': [160, 170],
+                'Mira 2x': [150, 160],
+                'Mira 4x': [135, 145],
+                'Mira AWM': [70, 85],
+                Olhadinha: [165, 175],
+                'Botão de Atirar (Tamanho)': ['50%', '55%', '60%'],
+                DPI: [500, 600]
+            },
+            'Alta': {
+                Geral: [190, 200], 
+                'Ponto Vermelho': [180, 190],
+                'Mira 2x': [170, 180],
+                'Mira 4x': [155, 165],
+                'Mira AWM': [85, 95],
+                Olhadinha: [180, 190],
+                'Botão de Atirar (Tamanho)': ['35%', '40%', '45%'],
+                DPI: [600, 700]
+            }
+        };
+
+        const SENSI_STYLES = Object.keys(SENSITIVITY_RANGES); 
+
+        // Ajustes iOS (fixos)
         const IOS_ADJUSTMENTS = [
             "Ajustes > Acessibilidade > Toque > 3D Touch: Ativar, Sensibilidade 'Médio', Duração do Toque 'Rápido'.",
             "Ajustes > Acessibilidade > Toque > Assistive Cursivo > Refinado, Velocidade '120'.",
@@ -267,15 +314,10 @@
             "Ajustes > Acessibilidade > Tela e Tamanho do Texto > Texto Maior: Mínimo e Negrito: Ativado.",
             "Ajustes > Tela e Brilho > Zoom da Tela: Padrão."
         ];
-
-        const ANDROID_ADJUSTMENTS = [
-            "Configurações > Tela > Tamanho e Estilo da Fonte: Mínimo e Negrito: Ativado.",
-            "Configurações > Acessibilidade > Interação e Destreza > Atraso ao Manter Pressionado: 'Curto' (0.5s).",
-            "Configurações > Gerenciamento Geral > Mouse e Teclado > Velocidade do Ponteiro: 'Máxima'.",
-            "Opções do Desenvolvedor > Largura Mínima (DPI): '596' (ou 600, teste o seu limite).",
-            "Configurações > Apps > Game Launcher > Prioridade no Desempenho."
-        ];
         
+        // --- FIM NOVAS FUNÇÕES E DADOS DINÂMICOS ---
+
+
         /**
          * Copia o texto para a área de transferência.
          */
@@ -479,6 +521,7 @@
             }
         }
 
+
         /**
          * Salva os dados de sessão temporários.
          */
@@ -599,6 +642,7 @@
             }
         }
 
+
         /**
          * Inicializa o aplicativo.
          */
@@ -633,17 +677,56 @@
         };
 
         window.switchToSensi = () => setStage('sensi');
+        
+        /**
+         * Gera dinamicamente o objeto de sensibilidade.
+         */
+        function generateRandomSensitivity(style) {
+            const styleRanges = SENSITIVITY_RANGES[style];
+            const sensitivity = {};
+            let generatedDPI = 0;
+            
+            for (const key in styleRanges) {
+                const range = styleRanges[key];
+                
+                if (key === 'Botão de Atirar (Tamanho)') {
+                    // Seleciona um dos tamanhos de botão disponíveis no array de range
+                    sensitivity[key] = getRandomArrayItem(range); 
+                } else {
+                    // Gera um número aleatório para todas as sensibilidades e DPI
+                    const value = getRandomInt(range[0], range[1]);
+                    sensitivity[key] = value;
+                    if (key === 'DPI') {
+                        generatedDPI = value;
+                    }
+                }
+            }
+            
+            // Cria a lista de ajustes do Android com o DPI gerado
+            const dynamicAndroidAdjustments = [
+                "Configurações > Tela > Tamanho e Estilo da Fonte: Mínimo e Negrito: Ativado.",
+                "Configurações > Acessibilidade > Interação e Destreza > Atraso ao Manter Pressionado: 'Curto' (0.5s).",
+                "Configurações > Gerenciamento General > Mouse e Teclado > Velocidade do Ponteiro: 'Máxima'.",
+                `Opções do Desenvolvedor > Largura Mínima (DPI): '${generatedDPI}' (Use este valor).`,
+                "Configurações > Apps > Game Launcher > Prioridade no Desempenho."
+            ];
+
+            return { sensitivity, dynamicAndroidAdjustments };
+        }
 
         /**
          * Cria o objeto de dados de sensibilidade para um estilo específico.
          */
         function createSensiData(model, style) {
+            const { sensitivity, dynamicAndroidAdjustments } = generateRandomSensitivity(style);
+            
             return {
                 model: model,
                 os: currentOS,
                 style: style,
-                sensitivity: SENSITIVITY_DATA[style], 
-                adjustments: currentOS === 'iOS' ? IOS_ADJUSTMENTS : ANDROID_ADJUSTMENTS
+                sensitivity: sensitivity, 
+                // Seleciona os ajustes com base no OS, usando os dinâmicos se for Android
+                adjustments: currentOS === 'iOS' ? IOS_ADJUSTMENTS : dynamicAndroidAdjustments
             };
         }
 
@@ -742,6 +825,7 @@
         
         // --- FIM FUNÇÕES DE LOGIN ---
 
+
         /**
          * Gera o HTML para o formulário de Sensibilidade.
          */
@@ -779,19 +863,20 @@
                         <label class="text-sm font-semibold text-gray-300 mb-2 block">3. Escolha o Estilo e Gere</label>
                         <div class="space-y-4">
                             <button onclick="generateSensi('Baixa')" class="btn-generate w-full py-3 rounded-lg shadow-md">
-                                Gerar Sensi Baixa
+                                Gerar Sensi Baixa (Nova)
                             </button>
                             <button onclick="generateSensi('Média')" class="btn-generate w-full py-3 rounded-lg shadow-md">
-                                Gerar Sensi Média
+                                Gerar Sensi Média (Nova)
                             </button>
                             <button onclick="generateSensi('Alta')" class="btn-generate w-full py-3 rounded-lg shadow-md">
-                                Gerar Sensi Alta
+                                Gerar Sensi Alta (Nova)
                             </button>
                         </div>
                     </div>
                 </div>
             `;
         }
+
 
         /**
          * Renderiza o conteúdo principal.
@@ -824,6 +909,7 @@
             appScreen.prepend(prompt);
         }
 
+
         /**
          * Gera o HTML para a tela de carregamento (Spinner).
          */
@@ -847,10 +933,12 @@
             const sensitivity = data.sensitivity || {};
             const adjustments = data.adjustments || [];
 
+            // Converte o objeto de sensibilidade para uma string para copiar
             const sensiTextToCopy = Object.keys(sensitivity).map(key => 
                 `${key}: ${sensitivity[key]}`
             ).join(', ').replace(/'/g, "\\'");
             
+            // Converte o array de ajustes para uma string para copiar
             const adjustmentsTextToCopy = adjustments.join('\n').replace(/'/g, "\\'");
             
             const sensitivityItems = Object.keys(sensitivity).map(key => `
@@ -860,9 +948,12 @@
                 </div>
             `).join('');
 
-            const adjustmentItems = adjustments.map(item => `
-                <p class="adjustment-item">${item}</p>
-            `).join('');
+            const adjustmentItems = adjustments.map(item => {
+                // Destaca o DPI ou configurações importantes
+                const highlight = item.includes('DPI') || item.includes('Máxima') || item.includes('Curto') ? 'text-yellow-400 font-semibold' : 'text-dddddd';
+                return `<p class="adjustment-item ${highlight}">${item}</p>`;
+            }).join('');
+
 
             appScreen.innerHTML = `
                 <div class="text-lg font-bold text-center text-white mb-6">
@@ -953,7 +1044,16 @@
                 return;
             }
 
-            const adjustments = record.os === 'iOS' ? IOS_ADJUSTMENTS : ANDROID_ADJUSTMENTS;
+            // Recalcula os ajustes dinâmicos do Android, pois o DPI precisa ser inserido
+            const adjustments = record.os === 'iOS' 
+                ? IOS_ADJUSTMENTS 
+                : [
+                    "Configurações > Tela > Tamanho e Estilo da Fonte: Mínimo e Negrito: Ativado.",
+                    "Configurações > Acessibilidade > Interação e Destreza > Atraso ao Manter Pressionado: 'Curto' (0.5s).",
+                    "Configurações > Gerenciamento General > Mouse e Teclado > Velocidade do Ponteiro: 'Máxima'.",
+                    `Opções do Desenvolvedor > Largura Mínima (DPI): '${record.sensitivity.DPI}' (Use este valor).`,
+                    "Configurações > Apps > Game Launcher > Prioridade no Desempenho."
+                ];
             
             const dataToRender = { ...record, adjustments: adjustments };
             
@@ -987,8 +1087,9 @@
                      sessionStatusElement.classList.remove('hidden');
                 } else {
                      sessionStatusElement.classList.add('hidden');
-                }
+        htmh
             }
+
 
             // 5. Roteamento de Estágios
             switch (currentStage) {
