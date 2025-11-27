@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Sensibilidade</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* --- Animação de Fundo Simulando Vídeo de Rede Cósmica --- */
+        
+        @keyframes grid-flow {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            50% { transform: translate(5%, 10%) scale(1.1) rotate(180deg); }
+            100% { transform: translate(0, 0) scale(1) rotate(360deg); }
+        }
+
+        #cosmic-grid-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -10; 
+            overflow: hidden;
+            background-color: #000000; 
+        }
+
+        #cosmic-grid-background::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            top: -50%;
+            left: -50%;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 255, 0.15) 0%, rgba(0, 0, 0, 0) 40%);
+            opacity: 0.5;
+            animation: grid-flow 40s linear infinite; 
+            filter: blur(80px); 
+        }
+        
+        /* --- Estilos da Interface (Mobile-First) --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+
+        .app-container {
+            position: relative; 
+            z-index: 10; 
+            width: 100%;
+            max-width: 420px; 
+            background-color: rgba(10, 10, 10, 0.9); 
+            backdrop-filter: blur(5px); 
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 255, 255, 0.1); 
+            min-height: 90vh;
+            border: 1px solid #333333; 
+        }
+
+        .btn-generate {
+            background-color: #00ffff; 
+            color: #000000; 
+            transition: background-color 0.2s, box-shadow 0.2s;
+            font-weight: 700; 
+        }
+
+        .btn-generate:hover:not(.disabled) {
+            background-color: #00dddd; 
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.7); 
+        }
+
+        .btn-os.selected {
+            background-color: #00ffff;
+            color: #000000;
+            font-weight: 700;
+        }
+        
+        .btn-os {
+            background-color: #333333;
+            color: #cccccc;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-os:not(.selected):hover {
+            background-color: #555555;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 255, 255, 0.1);
+            border-top: 4px solid #00ffff; 
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-box, .history-item {
+            background-color: #1a1a1a; 
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #2c2c2c;
+        }
+        
+        .history-item {
+            border-left-color: #00ffff !important; 
+            border-left-width: 4px;
+        }
+
+        .history-item:hover {
+            background-color: #2c2c2c; 
+        }
+
+        .adjustment-item {
+            font-size: 0.875rem; 
+            line-height: 1.5;
+            color: #dddddd; 
+            margin-bottom: 8px;
+        }
+
+        .input-style {
+            background-color: #0d0d0d !important; 
+            border: 1px solid #333333 !important;
+        }
+        
+        .input-style:focus {
+            border-color: #00ffff !important; 
+            box-shadow: 0 0 5px rgba(0, 255, 255, 0.5) !important;
+        }
+        
+        .text-neon {
+            color: #00ffff;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+        }
+
+        /* Estilo para a mensagem de sessão */
+        .session-status {
+            background-color: rgba(0, 255, 255, 0.1);
+            color: #00ffff;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            margin-bottom: 16px;
+        }
+
+    </style>
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, setDoc, onSnapshot, collection, query, limit, serverTimestamp, Timestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis do Firebase globalmente
+        window.firebase = {
+            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            getFirestore, doc, addDoc, setDoc, onSnapshot, collection, query, limit, serverTimestamp, Timestamp, setLogLevel
+        };
+    </script>
+</head>
+<body onload="initApp()">
+
+    <!-- ELEMENTO: Animação de fundo para simular vídeo/efeito dinâmico de Fluxo Cósmico -->
+    <div id="cosmic-grid-background"></div>
+
+    <div class="app-container">
+        <!-- Botão de Histórico -->
+        <button onclick="handleHistoryButtonClick()"
+                id="history-button"
+                class="absolute top-4 right-4 p-2 rounded-full transition-transform text-gray-500 hover:text-neon"
+                title="Histórico">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+                <path fill-rule="evenodd" d="M11.078 2.296A8.995 8.995 0 0 1 12 21.002c-.897 0-1.782-.093-2.65-.274a.75.75 0 0 1 .49-.49c.868.18 1.753.274 2.65.274a7.5 7.5 0 0 0 7.424-6.444.75.75 0 0 1 .63-.77 9.006 9.006 0 0 1 .098.24c.006.012.012.025.018.038l.017.039c.007.019.013.04.019.061l.01.026c.007.021.013.042.019.063a.75.75 0 0 1 0 .61c-.006.021-.012.042-.019.063l-.01.026c-.006.021-.012.042-.019.061l-.017.039c-.006.013-.012.026-.018.038a.75.75 0 0 1-.628.77A7.5 7.5 0 0 0 12 18.002a7.5 7.5 0 0 0-7.5-7.5c0-.69.117-1.366.345-1.996a.75.75 0 0 1 1.13-.578 8.992 8.992 0 0 1-1.385.575A9.004 9.004 0 0 1 12 3.002c.897 0 1.782.093 2.65.274a.75.75 0 0 1 .49-.49c-.868-.18-1.753-.274-2.65-.274Zm.75 1.706a.75.75 0 0 0-1.5 0v.151a.75.75 0 0 0 1.5 0v-.151ZM12 4.502a.75.75 0 0 0-.75.75v.151a.75.75 0 0 0 1.5 0v-.151a.75.75 0 0 0-.75-.75Zm0 13.501a.75.75 0 0 0-.75.75v.151a.75.75 0 0 0 1.5 0v-.151a.75.75 0 0 0-.75-.75Zm0-12a.75.75 0 0 0-.75.75v.151a.75.75 0 0 0 1.5 0V7.502a.75.75 0 0 0-.75-.75Z" clip-rule="evenodd" />
+            </svg>
+        </button>
+
+        <h1 id="main-title" class="text-xl font-bold text-center text-neon mb-6">GERADOR DE SENSIBILIDADE</h1>
+
+        <!-- Campo de status de sessão temporária -->
+        <div id="session-status" class="hidden session-status mb-4 text-center"></div>
+
+        <div id="app-screen">
+            <!-- Conteúdo da aplicação será renderizado aqui -->
+        </div>
+
+        <div class="mt-8">
+            <button id="exit-button" onclick="handleExitOrBack()" class="w-full py-3 bg-gray-800 hover:bg-gray-700 rounded-lg text-white font-semibold transition-colors shadow-lg">
+                Sair
+            </button>
+        </div>
+
+        <div class="text-center mt-6 pt-4 border-t border-gray-800">
+            <p class="text-lg font-bold text-neon">ZT Sensi</p>
+            <p class="text-xs text-gray-400 mt-1">criador : Hszinnz</p>
+        </div>
+        <div id="auth-loading" class="text-center text-sm text-gray-500 mt-4">
+            Carregando configurações de dados...
+        </div>
+
+    </div>
+
+    <script type="module">
+        // Importa as variáveis do Firebase globalmente
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, 
+                getFirestore, doc, addDoc, setDoc, onSnapshot, collection, query, limit, serverTimestamp, Timestamp, setLogLevel } = window.firebase;
+
+        // --- CREDENCIAIS HARDCODED ---
+        const USERNAME = 'Hszinnz_01';
+        const PASSWORD = 'happynation01';
+        
+        // Variáveis de estado globais
+        let db;
+        let auth;
+        let userId = 'unknown';
+        let isAuthReady = false;
+        let isLoggedIn = false; // NOVO: Estado de login da aplicação
+        let historyRecords = [];
+        let currentOS = 'Android'; // 'Android' ou 'iOS'
+        let currentStage = 'login'; // 'login', 'sensi', 'loading', 'result', 'history', 'result_history'
+        
+        // Variáveis de sessão temporária
+        const TIMEOUT_MINUTES = 15;
+        const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
+        const SESSION_DOC_ID = 'currentSession';
+        
+        let lastSessionData = null; 
+        let lastActiveTimestamp = null;
+        let sessionTimerInterval = null; 
+        let currentModel = ''; 
+        
+        // Elementos DOM
+        let appScreen;
+        let historyButton;
+        let authLoadingMessage;
+        let sessionStatusElement;
+
+        // Constantes do Firebase
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const HISTORY_COLLECTION_PATH_BASE = `artifacts/${appId}/users/`; 
+
+        // Dados de Sensibilidade
+        const SENSITIVITY_DATA = {
+            'Baixa': { Geral: 150, 'Ponto Vermelho': 140, 'Mira 2x': 130, 'Mira 4x': 120, 'Mira AWM': 50, Olhadinha: 140, 'Botão de Atirar (Tamanho)': '70%', DPI: 450 },
+            'Média': { Geral: 175, 'Ponto Vermelho': 165, 'Mira 2x': 155, 'Mira 4x': 140, 'Mira AWM': 75, Olhadinha: 170, 'Botão de Atirar (Tamanho)': '55%', DPI: 550 },
+            'Alta': { Geral: 195, 'Ponto Vermelho': 185, 'Mira 2x': 175, 'Mira 4x': 160, 'Mira AWM': 90, Olhadinha: 185, 'Botão de Atirar (Tamanho)': '40%', DPI: 650 }
+        };
+        const SENSI_STYLES = Object.keys(SENSITIVITY_DATA); 
+
+        const IOS_ADJUSTMENTS = [
+            "Ajustes > Acessibilidade > Toque > 3D Touch: Ativar, Sensibilidade 'Médio', Duração do Toque 'Rápido'.",
+            "Ajustes > Acessibilidade > Toque > Assistive Cursivo > Refinado, Velocidade '120'.",
+            "Ajustes > Acessibilidade > Toque > Assistive Cursivo > Rastreamento 'Máximo', Tolerância de Movimento 'Máx'.",
+            "Ajustes > Acessibilidade > Tela e Tamanho do Texto > Texto Maior: Mínimo e Negrito: Ativado.",
+            "Ajustes > Tela e Brilho > Zoom da Tela: Padrão."
+        ];
+
+        const ANDROID_ADJUSTMENTS = [
+            "Configurações > Tela > Tamanho e Estilo da Fonte: Mínimo e Negrito: Ativado.",
+            "Configurações > Acessibilidade > Interação e Destreza > Atraso ao Manter Pressionado: 'Curto' (0.5s).",
+            "Configurações > Gerenciamento Geral > Mouse e Teclado > Velocidade do Ponteiro: 'Máxima'.",
+            "Opções do Desenvolvedor > Largura Mínima (DPI): '596' (ou 600, teste o seu limite).",
+            "Configurações > Apps > Game Launcher > Prioridade no Desempenho."
+        ];
+        
+        /**
+         * Copia o texto para a área de transferência.
+         */
+        window.copyToClipboard = (text, buttonId) => {
+            const tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            tempInput.style.position = 'fixed'; 
+            tempInput.style.top = '0';
+            tempInput.style.left = '0';
+            tempInput.style.opacity = '0';
+            document.body.appendChild(tempInput);
+            tempInput.focus();
+            tempInput.select();
+
+            const button = document.getElementById(buttonId);
+            const originalText = button ? button.textContent : 'COPIAR';
+            const originalClasses = button ? button.className : '';
+
+            try {
+                const successful = document.execCommand('copy');
+                
+                if (button) {
+                    button.textContent = successful ? 'COPIADO!' : 'FALHA!';
+                    const oldBg = button.classList.contains('bg-gray-700') ? 'bg-gray-700 hover:bg-gray-600' : 'btn-generate';
+                    
+                    button.className = originalClasses.replace(oldBg, successful ? 'bg-green-600' : 'bg-red-600');
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.className = originalClasses; 
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Falha ao copiar:', err);
+            }
+
+            document.body.removeChild(tempInput);
+        };
+        
+        // Funções auxiliares de tempo
+        const formatTime = (seconds) => {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        };
+        
+        // Função de debounce
+        const debounce = (func, delay) => {
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => func(...args), delay);
+            };
+        };
+
+        /**
+         * Inicializa o Firebase e a Autenticação.
+         */
+        async function initializeFirebase() {
+            try {
+                setLogLevel('error');
+
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Autenticação
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Listener de estado de autenticação
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                    } else {
+                        userId = crypto.randomUUID();
+                    }
+                    isAuthReady = true;
+                    authLoadingMessage.classList.add('hidden');
+                    console.log("Firebase Auth Ready. User ID:", userId);
+                    
+                    // Inicia listeners APÓS a autenticação
+                    if(isLoggedIn) {
+                        startHistoryListener();
+                        startSessionListener(); 
+                    }
+
+                    updateUI(); 
+                });
+
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                authLoadingMessage.textContent = 'Erro ao carregar configurações. Tente recarregar a página.';
+                isAuthReady = true;
+                updateUI();
+            }
+        }
+        
+        /**
+         * NOVO: Inicia o listener em tempo real para a sessão temporária.
+         */
+        function startSessionListener() {
+            if (!isAuthReady || !db || userId === 'unknown') return;
+
+            const sessionRef = doc(db, `${HISTORY_COLLECTION_PATH_BASE}${userId}/temp_session/${SESSION_DOC_ID}`);
+
+            onSnapshot(sessionRef, (docSnapshot) => {
+                const sessionDataEl = document.getElementById('session-status');
+                
+                if (docSnapshot.exists()) {
+                    const data = docSnapshot.data();
+                    const now = Date.now();
+                    const lastActiveMs = data.lastActive?.toMillis() || 0;
+                    const diffMs = now - lastActiveMs;
+
+                    if (diffMs < TIMEOUT_MS) {
+                        // Sessão VÁLIDA: Restaura o estado
+                        lastSessionData = data.lastResult || null;
+                        currentOS = data.os || 'Android';
+                        currentModel = data.modelInput || '';
+                        lastActiveTimestamp = data.lastActive; 
+
+                        const modelInput = document.getElementById('phone-model');
+                        if (modelInput && modelInput.value !== currentModel) {
+                            modelInput.value = currentModel;
+                        }
+
+                        startSessionTimer();
+                        sessionDataEl.classList.remove('hidden');
+                        
+                        if(currentStage === 'sensi' && lastSessionData) {
+                             sessionDataEl.innerHTML = `Sessão restaurada! Tempo restante: <span id="time-left" class="font-bold">...</span>`;
+                        } else {
+                             sessionDataEl.innerHTML = `Sessão ativa. Tempo restante: <span id="time-left" class="font-bold">...</span>`;
+                        }
+                        
+                        updateUI();
+
+                    } else {
+                        // Sessão EXPIRADA
+                        lastSessionData = null;
+                        lastActiveTimestamp = null;
+                        stopSessionTimer();
+                        sessionDataEl.textContent = `Sessão temporária expirada (${TIMEOUT_MINUTES} minutos).`;
+                        sessionDataEl.classList.remove('hidden');
+                    }
+                } else {
+                    lastSessionData = null;
+                    lastActiveTimestamp = null;
+                    stopSessionTimer();
+                    sessionStatusElement.classList.add('hidden');
+                }
+            }, (error) => {
+                console.error("Erro ao ouvir sessão:", error);
+            });
+        }
+        
+        /**
+         * Inicia ou reinicia o contador regressivo no front-end.
+         */
+        function startSessionTimer() {
+            if (sessionTimerInterval) {
+                clearInterval(sessionTimerInterval);
+            }
+
+            sessionTimerInterval = setInterval(() => {
+                if (lastActiveTimestamp) {
+                    const nowMs = Date.now();
+                    const lastActiveMs = lastActiveTimestamp.toMillis();
+                    
+                    const elapsedMs = nowMs - lastActiveMs;
+                    const remainingMs = TIMEOUT_MS - elapsedMs;
+
+                    const timeLeftSpan = document.getElementById('time-left');
+
+                    if (remainingMs > 0) {
+                        const seconds = Math.ceil(remainingMs / 1000);
+                        if (timeLeftSpan) {
+                            timeLeftSpan.textContent = formatTime(seconds);
+                        }
+                    } else {
+                        stopSessionTimer();
+                        if (timeLeftSpan) {
+                             timeLeftSpan.textContent = '00:00';
+                             document.getElementById('session-status').textContent = `Sessão temporária expirada (${TIMEOUT_MINUTES} minutos).`;
+                        }
+                    }
+                } else {
+                    stopSessionTimer();
+                }
+            }, 1000);
+        }
+
+        function stopSessionTimer() {
+            if (sessionTimerInterval) {
+                clearInterval(sessionTimerInterval);
+                sessionTimerInterval = null;
+            }
+        }
+
+
+        /**
+         * Salva os dados de sessão temporários.
+         */
+        async function updateSessionData(data = {}) {
+            if (!isAuthReady || !db || userId === 'unknown' || !isLoggedIn) {
+                return;
+            }
+            
+            const sessionRef = doc(db, `${HISTORY_COLLECTION_PATH_BASE}${userId}/temp_session/${SESSION_DOC_ID}`);
+            
+            const sessionPayload = {
+                modelInput: currentModel,
+                os: currentOS,
+                lastResult: lastSessionData,
+                lastActive: serverTimestamp(), 
+                ...data
+            };
+
+            try {
+                await setDoc(sessionRef, sessionPayload, { merge: true });
+            } catch (e) {
+                console.error("Erro ao salvar dados de sessão: ", e);
+            }
+        }
+        
+        // Função para lidar com a mudança do input com debounce
+        const debouncedUpdateSessionData = debounce(() => {
+            const modelInput = document.getElementById('phone-model');
+            if (modelInput) {
+                currentModel = modelInput.value.trim();
+                updateSessionData();
+            }
+        }, 800);
+        
+        window.handleModelChange = debouncedUpdateSessionData;
+        
+        /**
+         * Inicia o listener em tempo real para o histórico de sensibilidade PERMANENTE.
+         */
+        function startHistoryListener() {
+            if (!isAuthReady || !db || userId === 'unknown' || !isLoggedIn) return;
+
+            const historyRef = collection(db, `${HISTORY_COLLECTION_PATH_BASE}${userId}/sensi_history`);
+            const q = query(historyRef, limit(10)); 
+
+            onSnapshot(q, (snapshot) => {
+                historyRecords = [];
+                snapshot.forEach((doc) => {
+                    historyRecords.push({ id: doc.id, ...doc.data() });
+                });
+                
+                historyRecords.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                if (currentStage === 'history') {
+                    renderHistoryScreen();
+                }
+            }, (error) => {
+                console.error("Erro ao ouvir histórico (onSnapshot):", error);
+            });
+        }
+        
+        /**
+         * Salva a sensibilidade gerada no Firestore PERMANENTEMENTE.
+         */
+        async function saveSensi(data) {
+            if (!isAuthReady || !db || userId === 'unknown' || !isLoggedIn) {
+                console.warn("Firebase não pronto ou usuário não logado. Histórico não salvo.");
+                return;
+            }
+
+            const historyRef = collection(db, `${HISTORY_COLLECTION_PATH_BASE}${userId}/sensi_history`);
+            
+            const record = {
+                ...data,
+                timestamp: new Date().toISOString() 
+            };
+
+            try {
+                await addDoc(historyRef, record);
+            } catch (e) {
+                console.error("Erro ao adicionar documento de histórico: ", e);
+            }
+        }
+
+        /**
+         * Lida com o clique no botão de histórico.
+         */
+        window.handleHistoryButtonClick = () => {
+            if (currentStage === 'sensi' && isAuthReady && isLoggedIn) {
+                setStage('history');
+            } else if (!isAuthReady) {
+                const feedback = document.getElementById('feedback-message');
+                if (feedback) {
+                    feedback.textContent = 'O histórico está carregando, por favor, aguarde o sistema de dados.';
+                    feedback.classList.remove('hidden', 'bg-red-800/50', 'text-white');
+                    feedback.classList.add('bg-blue-800/50', 'text-blue-200');
+                    setTimeout(() => feedback.classList.add('hidden'), 3000);
+                }
+            }
+        }
+
+        /**
+         * Lida com o clique no botão Sair/Voltar.
+         */
+        window.handleExitOrBack = () => {
+            if (currentStage === 'sensi') {
+                isLoggedIn = false;
+                setStage('login');
+                console.log('Usuário deslogado do aplicativo.');
+            } else if (currentStage === 'result' || currentStage === 'loading') {
+                setStage('sensi');
+            } else if (currentStage === 'result_history') {
+                setStage('history');
+            } else if (currentStage === 'history') {
+                setStage('sensi');
+            } else if (currentStage === 'login') {
+                 console.log('Saindo do aplicativo...');
+            }
+        }
+
+
+        /**
+         * Inicializa o aplicativo.
+         */
+        function initApp() {
+            appScreen = document.getElementById('app-screen');
+            historyButton = document.getElementById('history-button');
+            authLoadingMessage = document.getElementById('auth-loading');
+            sessionStatusElement = document.getElementById('session-status');
+            
+            // Inicia o Firebase de forma assíncrona
+            initializeFirebase();
+
+            // Renderiza a tela inicial
+            updateUI();
+        }
+
+        /**
+         * Altera o estado (tela) da aplicação.
+         */
+        function setStage(stage, data = null) {
+            currentStage = stage;
+            updateUI(data);
+        }
+
+        /**
+         * Alterna o sistema operacional (Android/iOS).
+         */
+        window.setOS = (os) => {
+            currentOS = os;
+            updateSessionData({os: os}); 
+            updateUI(); 
+        };
+
+        window.switchToSensi = () => setStage('sensi');
+
+        /**
+         * Cria o objeto de dados de sensibilidade para um estilo específico.
+         */
+        function createSensiData(model, style) {
+            return {
+                model: model,
+                os: currentOS,
+                style: style,
+                sensitivity: SENSITIVITY_DATA[style], 
+                adjustments: currentOS === 'iOS' ? IOS_ADJUSTMENTS : ANDROID_ADJUSTMENTS
+            };
+        }
+
+        /**
+         * Inicia o processo de geração para um único estilo.
+         */
+        window.generateSensi = (style) => {
+            const modelInput = document.getElementById('phone-model');
+            const model = modelInput ? modelInput.value.trim() : '';
+            currentModel = model; 
+
+            if (!model) {
+                const feedback = document.getElementById('feedback-message');
+                feedback.textContent = 'Por favor, digite o modelo do seu celular (Ex: iPhone 13, Galaxy S23).';
+                feedback.classList.remove('hidden', 'bg-blue-800/50', 'text-blue-200');
+                feedback.classList.add('bg-red-800/50', 'text-white');
+                setTimeout(() => feedback.classList.add('hidden'), 3000);
+                return;
+            }
+            
+            document.getElementById('feedback-message').classList.add('hidden');
+            
+            const sensiData = createSensiData(model, style);
+
+            setStage('loading');
+
+            // Simula processamento, salva no histórico PERMANENTE e na sessão TEMPORÁRIA
+            setTimeout(() => {
+                saveSensi(sensiData); 
+                
+                lastSessionData = sensiData;
+                updateSessionData({lastResult: sensiData}); 
+                
+                setStage('result', sensiData);
+            }, 1000); 
+        };
+        
+        // --- FUNÇÕES DE LOGIN ---
+
+        window.handleLogin = () => {
+            const user = document.getElementById('login-username').value;
+            const pass = document.getElementById('login-password').value;
+            const feedback = document.getElementById('login-feedback');
+            
+            feedback.classList.add('hidden');
+
+            if (user === USERNAME && pass === PASSWORD) {
+                isLoggedIn = true;
+                setStage('sensi');
+                
+                // Começa a sincronizar o histórico e a sessão APÓS o login
+                if (isAuthReady) {
+                    startHistoryListener();
+                    startSessionListener();
+                }
+            } else {
+                feedback.textContent = 'Login ou Senha inválidos.';
+                feedback.classList.remove('hidden');
+            }
+        };
+
+        function renderLoginScreen() {
+            document.getElementById('main-title').textContent = 'ACESSO RESTRITO';
+             const loginHtml = `
+                <div class="flex flex-col items-center justify-center pt-10 pb-20">
+                    <p class="text-neon text-2xl font-bold mb-8">LOGIN ZT SENSI</p>
+                    
+                    <div class="w-full space-y-4">
+                        <input 
+                            type="text" 
+                            id="login-username" 
+                            placeholder="Usuário" 
+                            value=""
+                            class="input-style w-full p-3 rounded-lg text-white placeholder-gray-500 transition"
+                        >
+                        <input 
+                            type="password" 
+                            id="login-password" 
+                            placeholder="Senha" 
+                            value=""
+                            class="input-style w-full p-3 rounded-lg text-white placeholder-gray-500 transition"
+                        >
+                        
+                        <div id="login-feedback" class="text-sm text-center hidden p-2 bg-red-800/50 rounded-lg text-white"></div>
+
+                        <button onclick="handleLogin()" class="btn-generate w-full py-3 rounded-lg shadow-md mt-6">
+                            ENTRAR
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            appScreen.innerHTML = loginHtml;
+            document.getElementById('exit-button').textContent = 'Sair';
+        }
+        
+        // --- FIM FUNÇÕES DE LOGIN ---
+
+
+        /**
+         * Gera o HTML para o formulário de Sensibilidade.
+         */
+        function renderSensiForm() {
+            const osButtonClass = (os) => 
+                `btn-os py-3 px-8 rounded-lg w-1/2 transition-colors font-medium text-center ${currentOS === os ? 'selected' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`;
+            
+            const modelValue = currentModel || '';
+
+            return `
+                <div class="space-y-6">
+                    <div class="mb-4">
+                        <label class="text-sm font-semibold text-gray-300 mb-2 block">1. Selecione o Sistema Operacional</label>
+                        <div class="flex bg-gray-900 p-1 rounded-lg">
+                            <button onclick="setOS('Android')" class="${osButtonClass('Android')}">Android</button>
+                            <button onclick="setOS('iOS')" class="${osButtonClass('iOS')}">iOS</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="text-sm font-semibold text-gray-300 mb-2 block">2. Digite o Modelo do seu Celular</label>
+                        <input 
+                            type="text" 
+                            id="phone-model" 
+                            placeholder="Ex: Samsung Galaxy S23, iPhone 14" 
+                            value="${modelValue}"
+                            oninput="handleModelChange()"
+                            class="input-style w-full p-3 rounded-lg text-white placeholder-gray-500 transition"
+                        >
+                    </div>
+
+                    <div id="feedback-message" class="text-sm text-white text-center hidden p-2 bg-red-800/50 rounded-lg"></div>
+
+                    <div class="mb-4">
+                        <label class="text-sm font-semibold text-gray-300 mb-2 block">3. Escolha o Estilo e Gere</label>
+                        <div class="space-y-4">
+                            <button onclick="generateSensi('Baixa')" class="btn-generate w-full py-3 rounded-lg shadow-md">
+                                Gerar Sensi Baixa
+                            </button>
+                            <button onclick="generateSensi('Média')" class="btn-generate w-full py-3 rounded-lg shadow-md">
+                                Gerar Sensi Média
+                            </button>
+                            <button onclick="generateSensi('Alta')" class="btn-generate w-full py-3 rounded-lg shadow-md">
+                                Gerar Sensi Alta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+
+        /**
+         * Renderiza o conteúdo principal.
+         */
+        function renderMainContent() {
+            document.getElementById('main-title').textContent = 'GERADOR DE SENSIBILIDADE';
+            appScreen.innerHTML = renderSensiForm();
+            
+            if (lastSessionData && lastActiveTimestamp) {
+                 const diff = Date.now() - lastActiveTimestamp.toMillis();
+                 if (diff < TIMEOUT_MS) {
+                     renderLastResultPrompt();
+                 }
+            }
+        }
+        
+        /**
+         * Renderiza um prompt para o usuário ver o resultado da última sessão.
+         */
+        function renderLastResultPrompt() {
+            const prompt = document.createElement('div');
+            prompt.className = "p-4 bg-gray-800 rounded-lg mb-6 shadow-xl border border-blue-500/50";
+            prompt.innerHTML = `
+                <p class="text-sm font-semibold text-blue-300 mb-2">SESSÃO RESTAURADA</p>
+                <p class="text-white text-base">O resultado da sua última geração para <span class="text-neon">${lastSessionData.model} (${lastSessionData.style})</span> está pronto para ser visto.</p>
+                <button onclick="setStage('result', lastSessionData)" class="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-bold transition-colors">
+                    Ver Último Resultado
+                </button>
+            `;
+            appScreen.prepend(prompt);
+        }
+
+
+        /**
+         * Gera o HTML para a tela de carregamento (Spinner).
+         */
+        function renderLoadingScreen() {
+            document.getElementById('main-title').textContent = 'OBTENHA A SENSIBILIDADE';
+            appScreen.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20">
+                    <div class="spinner mb-6"></div>
+                    <p class="text-lg font-semibold text-white">Analisando as melhores configurações...</p>
+                    <p class="text-sm text-gray-400 mt-2">Isso pode levar alguns segundos.</p>
+                </div>
+            `;
+        }
+
+        /**
+         * Gera o HTML para a tela de resultado.
+         */
+        function renderResultScreen(data) {
+            document.getElementById('main-title').textContent = currentStage === 'result_history' ? 'SENSIBILIDADE SALVA' : 'SENSIBILIDADE OBTIDA';
+            
+            const sensitivity = data.sensitivity || {};
+            const adjustments = data.adjustments || [];
+
+            const sensiTextToCopy = Object.keys(sensitivity).map(key => 
+                `${key}: ${sensitivity[key]}`
+            ).join(', ').replace(/'/g, "\\'");
+            
+            const adjustmentsTextToCopy = adjustments.join('\n').replace(/'/g, "\\'");
+            
+            const sensitivityItems = Object.keys(sensitivity).map(key => `
+                <div class="flex justify-between items-center py-1 border-b border-gray-700 last:border-b-0">
+                    <span class="text-gray-300 font-medium">${key}</span>
+                    <span class="text-neon font-bold text-lg">${sensitivity[key]}</span>
+                </div>
+            `).join('');
+
+            const adjustmentItems = adjustments.map(item => `
+                <p class="adjustment-item">${item}</p>
+            `).join('');
+
+
+            appScreen.innerHTML = `
+                <div class="text-lg font-bold text-center text-white mb-6">
+                    Configuração de Sensibilidade ${data.style} para ${data.model}
+                </div>
+
+                <div class="flex justify-between items-center mb-3 mt-4">
+                    <h2 class="text-xl font-bold text-neon">SENSI NO JOGO</h2>
+                    <button id="copy-sensi" 
+                            onclick="copyToClipboard('${sensiTextToCopy}', 'copy-sensi')" 
+                            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-colors font-semibold">
+                        COPIAR
+                    </button>
+                </div>
+                <div class="result-box">
+                    ${sensitivityItems}
+                </div>
+
+                <div class="flex justify-between items-center mb-3 mt-4">
+                    <h2 class="text-xl font-bold text-neon">AJUSTES DO ${data.os.toUpperCase()}</h2>
+                    <button id="copy-adjustments" 
+                            onclick="copyToClipboard('${adjustmentsTextToCopy}', 'copy-adjustments')"
+                            class="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded-full transition-colors font-semibold">
+                        COPIAR
+                    </button>
+                </div>
+                <div class="p-4 rounded-lg bg-gray-900 border border-gray-700">
+                    ${adjustmentItems}
+                </div>
+            `;
+        }
+
+        /**
+         * Gera o HTML para a tela de Histórico.
+         */
+        function renderHistoryScreen() {
+            document.getElementById('main-title').textContent = 'HISTÓRICO DE GERAÇÕES';
+
+            if (historyRecords.length === 0) {
+                appScreen.innerHTML = `
+                    <div class="text-center py-16 text-gray-400">
+                        <p class="text-4xl mb-4">⚙️</p>
+                        <p class="text-lg font-semibold mb-2">Histórico Vazio</p>
+                        <p class="text-sm">Gere sua primeira sensibilidade para que ela apareça aqui!</p>
+                        <p class="text-xs mt-4">ID do Usuário: ${userId}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const historyItemsHtml = historyRecords.map(record => {
+                const date = new Date(record.timestamp);
+                const timeStr = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                
+                return `
+                    <div class="history-item flex flex-col p-4 border-l-4 border-white cursor-pointer shadow-md"
+                         onclick="showHistoricalResult('${record.id}')">
+                        <div class="flex justify-between items-start">
+                            <span class="text-lg font-bold text-white">${record.model}</span>
+                            <span class="text-xs text-gray-400">${timeStr}</span>
+                        </div>
+                        <div class="flex justify-between items-center mt-1">
+                            <span class="text-sm text-gray-300 font-semibold">${record.style} (${record.os})</span>
+                            <span class="text-xs text-gray-400">Geral: ${record.sensitivity ? record.sensitivity.Geral : '--'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            appScreen.innerHTML = `
+                <div class="mb-4 text-sm text-gray-400">
+                    Clique em um item para ver os detalhes completos.
+                </div>
+                <div>
+                    ${historyItemsHtml}
+                </div>
+                <p class="text-xs text-center text-gray-500 mt-4">ID: ${userId}</p>
+            `;
+        }
+        
+        /**
+         * Exibe o resultado de um registro histórico.
+         */
+        window.showHistoricalResult = (id) => {
+            const record = historyRecords.find(r => r.id === id);
+            if (!record) {
+                console.error("Registro de histórico não encontrado:", id);
+                return;
+            }
+
+            const adjustments = record.os === 'iOS' ? IOS_ADJUSTMENTS : ANDROID_ADJUSTMENTS;
+            
+            const dataToRender = { ...record, adjustments: adjustments };
+            
+            setStage('result_history', dataToRender);
+        }
+
+        /**
+         * Função principal que atualiza a interface com base no estado.
+         */
+        function updateUI(data = null) {
+            const exitButton = document.getElementById('exit-button');
+            
+            // 1. GATILHO DE LOGIN: Se não estiver logado, forçar a tela de login
+            if (!isLoggedIn && currentStage !== 'login') {
+                currentStage = 'login';
+            }
+
+            // 2. Controla a visibilidade/interação do botão de histórico
+            historyButton.style.opacity = currentStage === 'sensi' && isAuthReady && isLoggedIn ? '1' : '0.5';
+            historyButton.style.pointerEvents = currentStage === 'sensi' && isAuthReady && isLoggedIn ? 'auto' : 'none';
+
+            // 3. Oculta a mensagem de carregamento do Firebase após a autenticação
+            if (isAuthReady) {
+                authLoadingMessage.classList.add('hidden');
+            }
+            
+            // 4. Lógica para mostrar/esconder o status de sessão
+            if (sessionStatusElement) {
+                const timeLeftSpan = document.getElementById('time-left');
+                if (currentStage === 'sensi' && lastActiveTimestamp && timeLeftSpan) {
+                     sessionStatusElement.classList.remove('hidden');
+                } else {
+                     sessionStatusElement.classList.add('hidden');
+                }
+            }
+
+
+            // 5. Roteamento de Estágios
+            switch (currentStage) {
+                case 'login':
+                    renderLoginScreen();
+                    exitButton.textContent = 'Sair';
+                    break;
+                case 'sensi':
+                    renderMainContent();
+                    exitButton.textContent = 'Logout';
+                    break;
+                case 'loading':
+                    renderLoadingScreen();
+                    exitButton.textContent = 'Cancelar';
+                    break;
+                case 'result':
+                    if (data) {
+                        renderResultScreen(data);
+                    }
+                    exitButton.textContent = 'Voltar';
+                    break;
+                case 'result_history': 
+                    if (data) {
+                        renderResultScreen(data);
+                    }
+                    exitButton.textContent = 'Voltar ao Histórico';
+                    break;
+                case 'history':
+                    renderHistoryScreen();
+                    exitButton.textContent = 'Voltar';
+                    break;
+                default:
+                    setStage('login');
+            }
+        }
+
+        // Garante que initApp e setStage sejam acessíveis globalmente
+        window.initApp = initApp;
+        window.setStage = setStage; 
+
+    </script>
+</body>
+</html>
